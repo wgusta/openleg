@@ -12,7 +12,7 @@ Living document. All market, regulatory, competitive, and technical research for
 | ElCom tariff data | 2026-03-05 | Fresh | Auto-refresh via cron |
 | Energie Reporter | 2026-03-05 | Fresh | Auto-refresh via cron |
 | BFE Sonnendach | 2026-03-05 | Fresh | Auto-refresh via cron |
-| SEO/content landscape | 2026-03-05 | Phase 1 done (7/8) | `seo-strategy.md` |
+| SEO/content landscape | 2026-03-07 | Phase 1 done, Phase 2 in progress | `seo-strategy.md` |
 | LEA outreach capability | 2026-03-05 | Operational | Email verified, RED tier active |
 | BFE grant programs | — | Not started | — |
 | Academic partnerships | — | Not started | — |

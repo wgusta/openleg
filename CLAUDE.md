@@ -48,6 +48,7 @@ Repo: `github.com/wgusta/openleg`
 | `security_utils.py` | Input validation, sanitization |
 | `data_enricher.py` | Geocoding (Swisstopo), energy profiles (BFE Sonnendach) |
 | `stripe_integration.py` | Dormant, kept for optionality |
+| `templates/pilotgemeinde_baden.html` | Baden pilot case study (real ElCom + Sonnendach data, BFS 4021) |
 
 ## Deploy
 

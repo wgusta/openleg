@@ -1,7 +1,7 @@
 # SEO & Content Strategy
 
 **Status:** Active
-**Last Updated:** 2026-03-05
+**Last Updated:** 2026-03-07
 **Goal:** Own Swiss LEG search landscape. Zero paid ads. Compound organic traffic through 2131 municipality pages + targeted content.
 
 ---
@@ -20,9 +20,10 @@
 - ~~**Structured data** on profiles~~ ✅ LocalPlace + BreadcrumbList added
 - ~~**og:image** on most pages~~ ✅ Added to profil + verzeichnis
 - ~~**Verzeichnis page** has NO meta tags, NO structured data~~ ✅ CollectionPage + canonical added
-- **No formation guide page** (missing "wie gründe ich eine LEG" content)
+- ~~**No formation guide page**~~ ✅ `/leg-gruenden` live
 - **No canton landing pages** (missing "/leg/zuerich", "/leg/bern" etc.)
-- **No financial calculator page** (savings calculator exists as widget, not as rankable page)
+- ~~**No financial calculator page**~~ ✅ `/leg-kalkulator` live
+- ~~**No case study / pilot page**~~ ✅ `/pilotgemeinde/baden` live (real ElCom + Sonnendach data for BFS 4021)
 - **No API developer landing page**
 - ~~**H1 tags** on profiles are generic~~ ✅ Keyword-optimized with tariff data
 - **Google Search Console** status unknown
@@ -92,11 +93,12 @@ OpenLEG's biggest SEO asset is 2131 individual municipality profile pages, each 
 
 **Goal:** Capture formation-intent queries with a dedicated guide.
 
-- [ ] **SEO-9**: Create `/leg-gruenden` page: 8-step LEG formation guide
-- [ ] **SEO-10**: Add HowTo schema to formation guide (schema.org/HowTo)
+- [x] **SEO-9**: Create `/leg-gruenden` page: 5-step LEG formation guide ✅ 2026-03-05
+- [x] **SEO-10**: Add HowTo schema to formation guide (schema.org/HowTo) ✅ 2026-03-05
 - [ ] **SEO-11**: Add FAQ schema to formation guide (additional questions beyond fuer-bewohner)
 - [ ] **SEO-12**: Internal linking: fuer-bewohner → leg-gruenden, fuer-gemeinden → leg-gruenden, profil → leg-gruenden
-- [ ] **SEO-13**: Create `/leg-kalkulator` page: interactive savings calculator (standalone page, not widget)
+- [x] **SEO-13**: Create `/leg-kalkulator` page: interactive savings calculator ✅ 2026-03-05
+- [x] **SEO-14b**: Create `/pilotgemeinde/baden` case study page with real BFS 4021 data (Article + Place schema) ✅ 2026-03-07
 
 ### Phase 3: Canton Expansion (Week 5-8)
 
