@@ -41,8 +41,8 @@ env/
 
 # Logs
 *.log
-badenleg_security.log
-badenleg_security.log.*
+openleg_security.log
+openleg_security.log.*
 
 # Flask
 instance/
@@ -110,3 +110,4 @@ deploy.sh
 grants/
 output/imagegen/
 openclaw/config/workspace/
+node_modules/

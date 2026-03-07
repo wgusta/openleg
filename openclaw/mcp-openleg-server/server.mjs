@@ -2,6 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import pg from 'pg';
+import { readFileSync } from 'node:fs';
+import { buildOutreachBrief } from './outreach.mjs';
 
 const { Pool } = pg;
 
@@ -13,9 +15,66 @@ const pool = new Pool({
 
 const BRAVE_API_KEY = process.env.BRAVE_API_KEY || '';
 const READONLY = (process.env.OPENCLAW_READONLY || 'false').toLowerCase() === 'true';
+const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN || '';
+const FLASK_BASE_URL = process.env.FLASK_BASE_URL || 'http://flask:5000';
 
 function readonlyGuard() {
   if (READONLY) return { content: [{ type: 'text', text: 'Write access disabled (OPENCLAW_READONLY=true)' }] };
+  return null;
+}
+
+// === Tier Guard System ===
+const ACTION_REGISTRY = {
+  send_outreach_email:    { tier: 'RED',    budget: { limit: 20, window: 86400, event: 'lea_send_outreach_email' } },
+  trigger_email:          { tier: 'RED',    budget: { limit: 50, window: 86400, event: 'lea_trigger_email' } },
+  update_consent:         { tier: 'RED',    budget: { limit: 10, window: 86400, event: 'lea_update_consent' } },
+  generate_leg_document:  { tier: 'RED',    budget: { limit: 10, window: 86400, event: 'lea_generate_leg_document' } },
+  request_approval:       { tier: 'RED',    budget: null },
+  upsert_tenant:          { tier: 'YELLOW', budget: { limit: 10, window: 86400, event: 'lea_upsert_tenant' } },
+  create_community:       { tier: 'YELLOW', budget: { limit: 5,  window: 86400, event: 'lea_create_community' } },
+  update_community_status:{ tier: 'YELLOW', budget: null },
+  add_community_member:   { tier: 'YELLOW', budget: { limit: 50, window: 86400, event: 'lea_add_community_member' } },
+  add_vnb_lead:           { tier: 'GREEN',  budget: null },
+  update_vnb_status:      { tier: 'GREEN',  budget: null },
+  track_strategy_item:    { tier: 'GREEN',  budget: null },
+  send_telegram:          { tier: 'GREEN',  budget: { limit: 30, window: 3600,  event: 'lea_send_telegram' } },
+  run_municipality_pipeline: { tier: 'YELLOW', budget: { limit: 3, window: 86400, event: 'lea_municipality_pipeline' } },
+};
+
+async function checkBudget(eventType, limit, window) {
+  if (!INTERNAL_TOKEN) return { allowed: true };
+  try {
+    const res = await fetch(`${FLASK_BASE_URL}/api/internal/check-budget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+      body: JSON.stringify({ event_type: eventType, limit, window })
+    });
+    if (!res.ok) return { allowed: false, reason: `HTTP ${res.status}` };
+    return await res.json();
+  } catch (e) {
+    console.error(`[tierGuard] checkBudget error: ${e.message}`);
+    return { allowed: false, reason: 'check_budget_error' };
+  }
+}
+
+function notifyYellow(toolName, summary) {
+  if (!INTERNAL_TOKEN) return;
+  fetch(`${FLASK_BASE_URL}/api/internal/notify-yellow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+    body: JSON.stringify({ tool_name: toolName, summary })
+  }).catch(e => console.error(`[tierGuard] notifyYellow error: ${e.message}`));
+}
+
+async function tierGuard(toolName) {
+  const entry = ACTION_REGISTRY[toolName];
+  if (!entry) return null;
+  if (entry.budget) {
+    const result = await checkBudget(entry.budget.event, entry.budget.limit, entry.budget.window);
+    if (!result.allowed) {
+      return { content: [{ type: 'text', text: `Budget exceeded for ${toolName}: ${result.used || '?'}/${result.limit || entry.budget.limit} (${result.reason || 'over limit'})` }] };
+    }
+  }
   return null;
 }
 
@@ -366,6 +425,7 @@ server.tool(
   },
   async ({ building_id, ...fields }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('update_registration'); if (budgetBlock) return budgetBlock;
     const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
     if (entries.length === 0) return txt({ error: 'No fields to update' });
 
@@ -410,6 +470,7 @@ server.tool(
   },
   async ({ name, admin_building_id, distribution_model, description }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('create_community'); if (budgetBlock) return budgetBlock;
     const community_id = `com_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const result = await query(
@@ -424,6 +485,8 @@ server.tool(
       [community_id, admin_building_id]
     );
 
+    await query(`INSERT INTO analytics_events (event_type, data, created_at) VALUES ('lea_create_community', $1, NOW())`, [JSON.stringify({ community_id, name })]);
+    notifyYellow('create_community', `Created community "${name}" (${community_id})`);
     return txt(result.rows[0]);
   }
 );
@@ -437,6 +500,7 @@ server.tool(
   },
   async ({ community_id, status }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('update_community_status'); if (budgetBlock) return budgetBlock;
     const timestampCol = {
       formation_started: 'formation_started_at',
       dso_submitted: 'dso_submitted_at',
@@ -449,6 +513,7 @@ server.tool(
     sql += ` WHERE community_id = $1 RETURNING *`;
 
     const result = await query(sql, [community_id, status]);
+    notifyYellow('update_community_status', `${community_id} → ${status}`);
     return txt(result.rows[0] || { error: 'Not found' });
   }
 );
@@ -463,15 +528,30 @@ server.tool(
   },
   async ({ building_id, template_key, send_at }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('trigger_email'); if (budgetBlock) return budgetBlock;
+    if (!INTERNAL_TOKEN) return txt({ error: 'INTERNAL_TOKEN not configured' });
     const bRes = await query(`SELECT email FROM buildings WHERE building_id = $1`, [building_id]);
     if (bRes.rows.length === 0) return txt({ error: 'Building not found' });
 
-    const result = await query(
-      `INSERT INTO scheduled_emails (building_id, email, template_key, send_at, status, created_at)
-       VALUES ($1, $2, $3, $4, 'pending', NOW()) RETURNING *`,
-      [building_id, bRes.rows[0].email, template_key, send_at || new Date().toISOString()]
-    );
-    return txt(result.rows[0]);
+    const request_id = `trigger-email-${building_id.slice(0, 16)}-${Date.now().toString(36)}`;
+    try {
+      const res = await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+        body: JSON.stringify({
+          request_id,
+          activity: 'trigger_email',
+          reference: `${bRes.rows[0].email} / ${template_key}`,
+          summary: `Schedule "${template_key}" email to ${bRes.rows[0].email}`,
+          payload: { building_id, template_key, send_at: send_at || new Date().toISOString() }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) return txt({ error: data.error || `HTTP ${res.status}` });
+      return txt({ queued_for_approval: true, request_id, building_id, template_key });
+    } catch (e) {
+      return txt({ error: `Failed to queue: ${e.message}` });
+    }
   }
 );
 
@@ -485,6 +565,7 @@ server.tool(
   },
   async ({ community_id, building_id, status }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('update_formation_step'); if (budgetBlock) return budgetBlock;
     let sql = `UPDATE community_members SET status = $3`;
     if (status === 'confirmed') sql += `, confirmed_at = NOW()`;
     sql += ` WHERE community_id = $1 AND building_id = $2 RETURNING *`;
@@ -505,6 +586,7 @@ server.tool(
   },
   async ({ community_id, building_id, role, invited_by }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('add_community_member'); if (budgetBlock) return budgetBlock;
     const result = await query(
       `INSERT INTO community_members (community_id, building_id, role, status, invited_by, joined_at)
        VALUES ($1, $2, $3, 'invited', $4, NOW())
@@ -513,6 +595,8 @@ server.tool(
       [community_id, building_id, role, invited_by || null]
     );
     if (result.rows.length === 0) return txt({ error: 'Already a member' });
+    await query(`INSERT INTO analytics_events (event_type, data, created_at) VALUES ('lea_add_community_member', $1, NOW())`, [JSON.stringify({ community_id, building_id })]);
+    notifyYellow('add_community_member', `Added ${building_id} to ${community_id}`);
     return txt(result.rows[0]);
   }
 );
@@ -528,17 +612,30 @@ server.tool(
   },
   async ({ building_id, ...fields }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('update_consent'); if (budgetBlock) return budgetBlock;
+    if (!INTERNAL_TOKEN) return txt({ error: 'INTERNAL_TOKEN not configured' });
     const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
     if (entries.length === 0) return txt({ error: 'No fields to update' });
 
-    const sets = entries.map(([k], i) => `${k} = $${i + 2}`);
-    const params = [building_id, ...entries.map(([, v]) => v)];
-
-    const result = await query(
-      `UPDATE consents SET ${sets.join(', ')} WHERE building_id = $1 RETURNING *`,
-      params
-    );
-    return txt(result.rows[0] || { error: 'Not found' });
+    const request_id = `consent-${building_id.slice(0, 16)}-${Date.now().toString(36)}`;
+    try {
+      const res = await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+        body: JSON.stringify({
+          request_id,
+          activity: 'update_consent',
+          reference: building_id,
+          summary: `Update consent for ${building_id}: ${JSON.stringify(Object.fromEntries(entries))}`,
+          payload: { building_id, ...Object.fromEntries(entries) }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) return txt({ error: data.error || `HTTP ${res.status}` });
+      return txt({ queued_for_approval: true, request_id, building_id });
+    } catch (e) {
+      return txt({ error: `Failed to queue: ${e.message}` });
+    }
   }
 );
 
@@ -599,6 +696,7 @@ server.tool(
   },
   async ({ territory, config: configObj, ...fields }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('upsert_tenant'); if (budgetBlock) return budgetBlock;
     const result = await query(
       `INSERT INTO white_label_configs (territory, utility_name, primary_color, secondary_color, contact_email, legal_entity, dso_contact, active, config, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
@@ -617,6 +715,8 @@ server.tool(
        fields.contact_email, fields.legal_entity, fields.dso_contact, fields.active,
        JSON.stringify(configObj)]
     );
+    await query(`INSERT INTO analytics_events (event_type, data, created_at) VALUES ('lea_upsert_tenant', $1, NOW())`, [JSON.stringify({ territory })]);
+    notifyYellow('upsert_tenant', `Upserted tenant "${territory}"`);
     return txt(result.rows[0]);
   }
 );
@@ -746,6 +846,16 @@ server.tool(
         kev_rp_kwh: parseFloat(b.kev?.value || 0)
       }));
 
+      // Fetch old tariffs for delta detection
+      const oldRows = await query(
+        `SELECT operator_name, category, total_rp_kwh FROM elcom_tariffs WHERE bfs_number = $1 AND year = $2`,
+        [bfs_number, year]
+      );
+      const oldMap = {};
+      for (const r of oldRows.rows) {
+        oldMap[`${r.operator_name}|${r.category}`] = parseFloat(r.total_rp_kwh);
+      }
+
       // Cache in DB
       for (const t of tariffs) {
         await query(
@@ -758,7 +868,26 @@ server.tool(
           [t.bfs_number, t.operator_name, t.year, t.category, t.total_rp_kwh, t.energy_rp_kwh, t.grid_rp_kwh, t.municipality_fee_rp_kwh, t.kev_rp_kwh]
         );
       }
-      return txt({ bfs_number, year, tariffs_count: tariffs.length, tariffs });
+
+      // Tariff delta detection: notify if any total changed >5%
+      const deltas = [];
+      for (const t of tariffs) {
+        const key = `${t.operator_name}|${t.category}`;
+        const oldVal = oldMap[key];
+        if (oldVal !== undefined && oldVal > 0) {
+          const pctChange = Math.abs(t.total_rp_kwh - oldVal) / oldVal * 100;
+          if (pctChange > 5) deltas.push({ operator: t.operator_name, category: t.category, old: oldVal, new: t.total_rp_kwh, delta_pct: pctChange.toFixed(1) });
+        }
+      }
+      if (deltas.length > 0 && INTERNAL_TOKEN) {
+        fetch(`${FLASK_BASE_URL}/api/internal/notify-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+          body: JSON.stringify({ event_type: 'tariff_changed', payload: { bfs_number, year, deltas } })
+        }).catch(e => console.error(`[tariff-delta] notify error: ${e.message}`));
+      }
+
+      return txt({ bfs_number, year, tariffs_count: tariffs.length, deltas, tariffs });
     } catch (e) {
       return txt({ error: e.message, bfs_number, year });
     }
@@ -1072,12 +1201,14 @@ server.tool(
   async ({ vnb_id, status, notes }) => {
     const guard = readonlyGuard();
     if (guard) return guard;
+    const budgetBlock = await tierGuard('update_vnb_status'); if (budgetBlock) return budgetBlock;
     const validStages = ['lead', 'contacted', 'demo', 'trial', 'paid', 'churned'];
     if (!validStages.includes(status)) return txt({ error: 'Invalid status' });
     const res = await query(
       `UPDATE vnb_pipeline SET status = $2, notes = COALESCE($3, notes), updated_at = NOW() WHERE id = $1 RETURNING *`,
       [vnb_id, status, notes || null]
     );
+    // promoted to GREEN tier
     return txt(res.rows[0] || { error: 'Not found' });
   }
 );
@@ -1096,11 +1227,13 @@ server.tool(
   async ({ vnb_name, municipality, bfs_number, population, score, notes }) => {
     const guard = readonlyGuard();
     if (guard) return guard;
+    const budgetBlock = await tierGuard('add_vnb_lead'); if (budgetBlock) return budgetBlock;
     const res = await query(
       `INSERT INTO vnb_pipeline (vnb_name, municipality, bfs_number, population, score, notes, status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'lead', NOW(), NOW()) RETURNING *`,
       [vnb_name, municipality || null, bfs_number || null, population || null, score || null, notes || null]
     );
+    // promoted to GREEN tier
     return txt(res.rows[0]);
   }
 );
@@ -1139,17 +1272,27 @@ server.tool(
   },
   async ({ community_id, doc_type }) => {
     const blocked = readonlyGuard(); if (blocked) return blocked;
+    const budgetBlock = await tierGuard('generate_leg_document'); if (budgetBlock) return budgetBlock;
+    if (!INTERNAL_TOKEN) return txt({ error: 'INTERNAL_TOKEN not configured' });
+
+    const request_id = `legdoc-${community_id.slice(0, 16)}-${doc_type}-${Date.now().toString(36)}`;
     try {
-      const flaskUrl = process.env.FLASK_URL || 'http://flask:5000';
-      const res = await fetch(`${flaskUrl}/api/formation/generate-document`, {
+      const res = await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ community_id, doc_type })
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+        body: JSON.stringify({
+          request_id,
+          activity: 'generate_leg_document',
+          reference: `${community_id} / ${doc_type}`,
+          summary: `Generate ${doc_type} for community ${community_id}`,
+          payload: { community_id, doc_type }
+        })
       });
       const data = await res.json();
-      return txt(data);
+      if (!res.ok) return txt({ error: data.error || `HTTP ${res.status}` });
+      return txt({ queued_for_approval: true, request_id, community_id, doc_type });
     } catch (e) {
-      return txt({ error: e.message });
+      return txt({ error: `Failed to queue: ${e.message}` });
     }
   }
 );
@@ -1250,18 +1393,105 @@ server.tool(
 
 server.tool(
   'draft_outreach',
-  'Draft a municipality outreach email informing about free LEG infrastructure. Returns German text.',
+  'Get enriched data brief for a Gemeinde (municipality). Use this data to compose a personalized outreach email following the style_guide. Do NOT use the old template; write the email yourself using the brief data.',
   {
-    municipality_name: z.string().describe('Name of the Gemeinde'),
-    bfs_number: z.number().describe('BFS number of the municipality'),
-    value_gap_chf: z.number().describe('Annual savings potential per household in CHF'),
-    solar_potential_pct: z.number().describe('Solar potential percentage of suitable roofs')
+    bfs_number: z.number().describe('BFS number of the municipality')
   },
-  async ({ municipality_name, bfs_number, value_gap_chf, solar_potential_pct }) => {
-    const profileUrl = `https://openleg.ch/gemeinde/${bfs_number}/profil`;
-    const onboardingUrl = `https://openleg.ch/gemeinde/${bfs_number}/onboarding`;
-    const email = `Betreff: Kostenlose LEG-Infrastruktur für ${municipality_name}\n\nSehr geehrte Gemeindeverantwortliche\n\nDie Gemeinde ${municipality_name} verfügt über ein hohes Potenzial für Lokale Elektrizitätsgemeinschaften (LEG).\n\nKennzahlen:\n- Solarpotenzial: ${solar_potential_pct}% der Dachflächen geeignet\n- Einsparpotenzial: ca. CHF ${value_gap_chf} pro Haushalt und Jahr\n\nOpenLEG stellt kostenlose, quelloffene Infrastruktur für die Gründung und Verwaltung von LEGs bereit. Kein Datenverkauf, keine Gebühren.\n\nGemeindeprofil: ${profileUrl}\nOnboarding starten: ${onboardingUrl}\n\nFreundliche Grüsse\nOpenLEG\nhallo@openleg.ch`;
-    return txt({ email, metadata: { municipality_name, bfs_number, value_gap_chf, solar_potential_pct } });
+  async ({ bfs_number }) => {
+    // Fetch municipality profile
+    const mpResult = await query(
+      'SELECT * FROM municipality_profiles WHERE bfs_number = $1', [bfs_number]
+    );
+    const municipalityRow = mpResult.rows[0] || null;
+
+    // Fetch H4 tariff (standard household)
+    const tariffResult = await query(
+      `SELECT total_rp_kwh, grid_rp_kwh, operator_name FROM elcom_tariffs
+       WHERE bfs_number = $1 AND category = 'H4' ORDER BY year DESC LIMIT 1`, [bfs_number]
+    );
+    const tariffRow = tariffResult.rows[0] || null;
+
+    // Cantonal comparison
+    let cantonalStats = null;
+    if (municipalityRow?.kanton) {
+      const cantonResult = await query(`
+        SELECT
+          AVG(et.total_rp_kwh) as avg_tariff,
+          COUNT(DISTINCT et.bfs_number) as total_in_canton
+        FROM elcom_tariffs et
+        JOIN municipality_profiles mp ON et.bfs_number = mp.bfs_number
+        WHERE mp.kanton = $1 AND et.category = 'H4'
+          AND et.year = (SELECT MAX(year) FROM elcom_tariffs)
+      `, [municipalityRow.kanton]);
+      const cs = cantonResult.rows[0];
+      if (cs) {
+        // Rank: how many municipalities have a higher tariff
+        const rankResult = await query(`
+          SELECT COUNT(*) + 1 as rank FROM elcom_tariffs et
+          JOIN municipality_profiles mp ON et.bfs_number = mp.bfs_number
+          WHERE mp.kanton = $1 AND et.category = 'H4'
+            AND et.year = (SELECT MAX(year) FROM elcom_tariffs)
+            AND et.total_rp_kwh > (SELECT total_rp_kwh FROM elcom_tariffs
+              WHERE bfs_number = $2 AND category = 'H4'
+              ORDER BY year DESC LIMIT 1)
+        `, [municipalityRow.kanton, bfs_number]);
+        cantonalStats = {
+          avg_tariff_rp_kwh: parseFloat(cs.avg_tariff) || null,
+          rank: parseInt(rankResult.rows[0]?.rank) || null,
+          total_in_canton: parseInt(cs.total_in_canton) || null
+        };
+      }
+    }
+
+    // Read feedback file
+    let feedback = '';
+    try {
+      feedback = readFileSync('/home/node/.openclaw/workspace/FEEDBACK.md', 'utf-8');
+    } catch { /* no feedback yet */ }
+
+    const brief = buildOutreachBrief(municipalityRow, tariffRow, cantonalStats, feedback);
+    return txt(brief);
+  }
+);
+
+server.tool(
+  'send_outreach_email',
+  'Queue an outreach email for CEO approval. Email is NOT sent immediately; CEO must approve via Telegram. Returns request_id for tracking.',
+  {
+    to: z.string().describe('Recipient email address'),
+    subject: z.string().describe('Email subject line'),
+    body: z.string().describe('Email body text'),
+    inbox: z.enum(['lea', 'transactional']).default('lea').describe('Which inbox to send from'),
+    reference: z.string().optional().describe('Reference label (e.g. municipality name)')
+  },
+  async ({ to, subject, body, inbox, reference }) => {
+    const guard = readonlyGuard();
+    if (guard) return guard;
+    const budgetBlock = await tierGuard('send_outreach_email'); if (budgetBlock) return budgetBlock;
+    if (!INTERNAL_TOKEN) return txt({ error: 'INTERNAL_TOKEN not configured' });
+    const slug = (reference || to).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+    const request_id = `outreach-${slug}-${Date.now().toString(36)}`;
+    try {
+      const res = await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Token': INTERNAL_TOKEN
+        },
+        body: JSON.stringify({
+          request_id,
+          activity: 'outreach',
+          reference: reference || to,
+          summary: `Email to ${to}: ${subject}`,
+          payload: { to, subject, text: body, inbox }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) return txt({ error: data.error || `HTTP ${res.status}` });
+      return txt({ queued_for_approval: true, request_id, to, subject });
+    } catch (e) {
+      return txt({ error: `Failed to queue: ${e.message}` });
+    }
   }
 );
 
@@ -1308,7 +1538,7 @@ server.tool(
       PREFIX schema: <http://schema.org/>
       PREFIX admin: <https://schema.ld.admin.ch/>
       SELECT ?bfs ?name ?canton ?population WHERE {
-        ?municipality a admin:Municipality ;
+        ?municipality a admin:PoliticalMunicipality ;
           schema:identifier ?bfs ;
           schema:name ?name ;
           admin:canton ?canton .
@@ -1385,6 +1615,443 @@ server.tool(
       LIMIT $1
     `, [limit]);
     return txt({ count: result.rowCount, candidates: result.rows });
+  }
+);
+
+// ============================================================
+// CEO Approval Tools
+// ============================================================
+
+server.tool(
+  'request_approval',
+  'Request CEO approval for an action. Creates a pending decision and sends structured Telegram message. CEO replies approve/deny in Telegram.',
+  {
+    request_id: z.string().describe('Unique slug (e.g. "outreach-kingley")'),
+    activity: z.enum(['outreach', 'billing', 'formation', 'other']).describe('Action category'),
+    reference: z.string().optional().describe('Reference label'),
+    summary: z.string().describe('Human readable summary for CEO'),
+    payload: z.record(z.any()).optional().describe('Action payload (executed on approval)')
+  },
+  async ({ request_id, activity, reference, summary, payload }) => {
+    const guard = readonlyGuard();
+    if (guard) return guard;
+    const budgetBlock = await tierGuard('request_approval'); if (budgetBlock) return budgetBlock;
+    if (!INTERNAL_TOKEN) return txt({ error: 'INTERNAL_TOKEN not configured' });
+    try {
+      const res = await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Token': INTERNAL_TOKEN
+        },
+        body: JSON.stringify({ request_id, activity, reference: reference || '', summary, payload: payload || {} })
+      });
+      const data = await res.json();
+      if (!res.ok) return txt({ error: data.error || `HTTP ${res.status}` });
+      return txt({ queued: true, request_id, status: 'pending' });
+    } catch (e) {
+      return txt({ error: `Failed to request approval: ${e.message}` });
+    }
+  }
+);
+
+server.tool(
+  'get_decisions',
+  'Query CEO decision queue. Filter by status and activity.',
+  {
+    status: z.enum(['pending', 'approved', 'denied']).optional().describe('Filter by decision status'),
+    activity: z.string().optional().describe('Filter by activity type'),
+    limit: z.number().default(20).describe('Max results')
+  },
+  async ({ status, activity, limit }) => {
+    let sql = 'SELECT * FROM ceo_decisions';
+    const clauses = [], params = [];
+    if (status) { params.push(status); clauses.push(`status = $${params.length}`); }
+    if (activity) { params.push(activity); clauses.push(`activity = $${params.length}`); }
+    if (clauses.length) sql += ' WHERE ' + clauses.join(' AND ');
+    params.push(limit);
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+    const result = await query(sql, params);
+    return txt({ count: result.rowCount, decisions: result.rows });
+  }
+);
+
+server.tool(
+  'get_stale_outreach',
+  'Get approved outreach decisions with no reply after a threshold. Read-only, GREEN tier.',
+  {
+    days_threshold: z.number().default(7).describe('Days since approval without reply')
+  },
+  async ({ days_threshold }) => {
+    const result = await query(
+      `SELECT cd.request_id, cd.reference, cd.summary, cd.decided_at
+       FROM ceo_decisions cd
+       WHERE cd.activity = 'outreach'
+         AND cd.status = 'approved'
+         AND cd.decided_at < NOW() - INTERVAL '1 day' * $1
+         AND NOT EXISTS (
+           SELECT 1 FROM analytics_events ae
+           WHERE ae.event_type = 'outreach_reply'
+             AND ae.data->>'request_id' = cd.request_id
+         )
+       ORDER BY cd.decided_at ASC`,
+      [days_threshold]
+    );
+    return txt({ count: result.rowCount, stale_outreach: result.rows });
+  }
+);
+
+server.tool(
+  'get_community_health',
+  'Detect community health issues: member drops, stale meter data. Read-only, GREEN tier.',
+  {},
+  async () => {
+    const issues = [];
+    // Member drops in last 7 days
+    const drops = await query(`
+      SELECT cm.community_id, 'member_drop' AS issue,
+             COUNT(*) || ' members left in 7 days' AS detail
+      FROM community_members cm
+      WHERE cm.status = 'left' AND cm.confirmed_at > NOW() - INTERVAL '7 days'
+      GROUP BY cm.community_id HAVING COUNT(*) >= 1
+    `);
+    issues.push(...drops.rows);
+
+    // Stale meter data (no uploads in 30 days)
+    const stale = await query(`
+      SELECT c.community_id, 'stale_meter_data' AS issue, 'No data for 30 days' AS detail
+      FROM communities c
+      WHERE c.status IN ('active', 'formation_started')
+        AND NOT EXISTS (
+          SELECT 1 FROM analytics_events ae
+          WHERE ae.event_type = 'meter_data_uploaded'
+            AND ae.data->>'community_id' = c.community_id
+            AND ae.created_at > NOW() - INTERVAL '30 days'
+        )
+    `);
+    issues.push(...stale.rows);
+    return txt({ count: issues.length, issues });
+  }
+);
+
+server.tool(
+  'get_inbound_emails',
+  'Get inbound emails from the triage queue. Read-only, GREEN tier.',
+  {
+    status: z.enum(['new', 'processed', 'archived']).optional().describe('Filter by status'),
+    limit: z.number().default(20).describe('Max results')
+  },
+  async ({ status, limit }) => {
+    let sql = 'SELECT * FROM inbound_emails';
+    const params = [];
+    if (status) { params.push(status); sql += ` WHERE status = $${params.length}`; }
+    params.push(limit);
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+    const result = await query(sql, params);
+    return txt({ count: result.rowCount, emails: result.rows });
+  }
+);
+
+server.tool(
+  'check_competitive_changes',
+  'Combined competitive intelligence: check leghub partners + VNB LEG offerings for changes. Auto-tracks strategy items on findings. GREEN tier.',
+  {},
+  async () => {
+    const changes = { leghub: null, vnb: null, strategy_tracked: false };
+    try {
+      // Check leghub partners
+      if (BRAVE_API_KEY) {
+        const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${new URLSearchParams({ q: 'site:leghub.ch partner', count: 10 })}`, {
+          headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_API_KEY }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const partners = (data.web?.results || []).map(r => ({ title: r.title, url: r.url }));
+          const prevRes = await query(`SELECT data FROM insights_cache WHERE insight_type = 'leghub_partners' ORDER BY computed_at DESC LIMIT 1`);
+          const previous = prevRes.rows[0]?.data?.partners || [];
+          const prevUrls = new Set(previous.map(p => p.url));
+          const newPartners = partners.filter(p => !prevUrls.has(p.url));
+          changes.leghub = { total: partners.length, new_count: newPartners.length, new_partners: newPartners };
+        }
+      }
+
+      // Check VNB LEG offerings
+      if (BRAVE_API_KEY) {
+        const vnbRes = await fetch(`https://api.search.brave.com/res/v1/web/search?${new URLSearchParams({ q: 'Lokale Elektrizitätsgemeinschaft LEG Angebot Schweiz', count: 10 })}`, {
+          headers: { 'Accept': 'application/json', 'X-Subscription-Token': BRAVE_API_KEY }
+        });
+        if (vnbRes.ok) {
+          const vnbData = await vnbRes.json();
+          const results = (vnbData.web?.results || []).map(r => ({ title: r.title, url: r.url }));
+          changes.vnb = { results_count: results.length, results };
+        }
+      }
+
+      // Auto-track strategy item if changes detected (GREEN tier)
+      if (changes.leghub?.new_count > 0 || changes.vnb?.results_count > 0) {
+        const week = Math.ceil((new Date().getMonth() + 1) / 3) * 4;
+        await query(
+          `INSERT INTO strategy_tracker (week, item, status, notes, updated_at)
+           VALUES ($1, 'competitive-intel', 'in_progress', $2, NOW())
+           ON CONFLICT (week, item) DO UPDATE SET notes = $2, updated_at = NOW()`,
+          [Math.min(week, 12), JSON.stringify(changes).substring(0, 500)]
+        );
+        changes.strategy_tracked = true;
+      }
+
+      return txt(changes);
+    } catch (e) {
+      return txt({ error: e.message, changes });
+    }
+  }
+);
+
+// ============================================================
+// Telegram & Strategy Tools
+// ============================================================
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+
+server.tool(
+  'send_telegram',
+  'Send a message to the CEO via Telegram. Use for progress updates, blockers, approval requests, daily reports, alerts.',
+  {
+    message: z.string().describe('Message text (Markdown supported)'),
+    category: z.enum(['progress', 'blocked', 'approval_needed', 'daily_report', 'alert']).describe('Message category'),
+    urgent: z.boolean().default(false).describe('If true, adds urgent prefix')
+  },
+  async ({ message, category, urgent }) => {
+    const budgetBlock = await tierGuard('send_telegram'); if (budgetBlock) return budgetBlock;
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+      return txt({ error: 'TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured' });
+    }
+    const prefix = { progress: '📊', blocked: '🚫', approval_needed: '⚠️', daily_report: '📋', alert: '🔴' };
+    const text = `${urgent ? '🚨 URGENT ' : ''}${prefix[category] || ''} *${category.replace('_', ' ').toUpperCase()}*\n\n${message}`;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown', disable_web_page_preview: true })
+      });
+      const data = await res.json();
+      if (!data.ok) return txt({ error: data.description });
+      await query(`INSERT INTO analytics_events (event_type, data, created_at) VALUES ('lea_send_telegram', $1, NOW())`, [JSON.stringify({ category })]);
+      return txt({ sent: true, message_id: data.result.message_id });
+    } catch (e) {
+      return txt({ error: e.message });
+    }
+  }
+);
+
+server.tool(
+  'track_strategy_item',
+  'Track progress on a 12-week strategy item. Upserts by (week, item).',
+  {
+    week: z.number().min(1).max(12).describe('Strategy week number (1-12)'),
+    item: z.string().describe('Item slug (e.g. "seed-200-municipalities")'),
+    status: z.enum(['pending', 'in_progress', 'done', 'blocked', 'needs_ceo']).describe('Current status'),
+    notes: z.string().optional().describe('Progress notes')
+  },
+  async ({ week, item, status, notes }) => {
+    const guard = readonlyGuard();
+    if (guard) return guard;
+    const budgetBlock = await tierGuard('track_strategy_item'); if (budgetBlock) return budgetBlock;
+    const result = await query(`
+      INSERT INTO strategy_tracker (week, item, status, notes, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (week, item) DO UPDATE SET status = $3, notes = $4, updated_at = NOW()
+      RETURNING *
+    `, [week, item, status, notes || '']);
+    // Fire strategy_status_changed event
+    if (INTERNAL_TOKEN && ['done', 'blocked', 'needs_ceo'].includes(status)) {
+      fetch(`${FLASK_BASE_URL}/api/internal/notify-event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+        body: JSON.stringify({ event_type: 'strategy_status_changed', payload: { week, item, status, notes: notes || '' } })
+      }).catch(e => console.error(`[strategy] notify error: ${e.message}`));
+    }
+    return txt(result.rows[0]);
+  }
+);
+
+server.tool(
+  'get_strategy_prioritized_outreach',
+  'Get outreach candidates prioritized by strategy status and VNB pipeline score. GREEN tier.',
+  {
+    limit: z.number().default(10).describe('Max results')
+  },
+  async ({ limit }) => {
+    const result = await query(`
+      SELECT mp.bfs_number, mp.municipality_name, mp.score,
+             vp.status AS pipeline_status, vp.score AS vnb_score,
+             st.status AS strategy_status, st.notes AS strategy_notes
+      FROM municipality_profiles mp
+      LEFT JOIN vnb_pipeline vp ON mp.municipality_name = vp.municipality
+      LEFT JOIN strategy_tracker st ON st.item LIKE '%' || LOWER(REPLACE(mp.municipality_name, ' ', '-')) || '%'
+      WHERE mp.score IS NOT NULL
+      ORDER BY
+        CASE WHEN st.status = 'in_progress' THEN 0
+             WHEN st.status = 'pending' THEN 1
+             WHEN vp.status = 'lead' THEN 2
+             ELSE 3 END,
+        mp.score DESC NULLS LAST
+      LIMIT $1
+    `, [limit]);
+    return txt({ count: result.rowCount, candidates: result.rows });
+  }
+);
+
+server.tool(
+  'get_strategy_status',
+  'Get strategy tracker status. Optional week filter. Returns items and per-week summary counts.',
+  {
+    week: z.number().optional().describe('Filter by week number')
+  },
+  async ({ week }) => {
+    let items, summary;
+    if (week) {
+      items = await query('SELECT * FROM strategy_tracker WHERE week = $1 ORDER BY item', [week]);
+      summary = await query(`
+        SELECT status, COUNT(*)::int as count FROM strategy_tracker WHERE week = $1 GROUP BY status
+      `, [week]);
+    } else {
+      items = await query('SELECT * FROM strategy_tracker ORDER BY week, item');
+      summary = await query(`
+        SELECT week, status, COUNT(*)::int as count FROM strategy_tracker GROUP BY week, status ORDER BY week
+      `);
+    }
+    return txt({ items: items.rows, summary: summary.rows });
+  }
+);
+
+server.tool(
+  'run_municipality_pipeline',
+  'End-to-end municipality discovery pipeline: find high-potential unseeded municipalities, create tenants, draft outreach, request CEO approval. YELLOW tier, budget 3/day.',
+  {
+    max_municipalities: z.number().default(3).describe('Max municipalities to process')
+  },
+  async ({ max_municipalities }) => {
+    const guard = readonlyGuard(); if (guard) return guard;
+    const budgetBlock = await tierGuard('run_municipality_pipeline'); if (budgetBlock) return budgetBlock;
+    const steps = { found: 0, tenants_created: 0, drafts: 0, approvals_requested: 0, errors: [] };
+    try {
+      // 1. Get unseeded municipalities with high potential (value_gap score)
+      const unseeded = await query(`
+        SELECT mp.bfs_number, mp.municipality_name, mp.score
+        FROM municipality_profiles mp
+        WHERE NOT EXISTS (SELECT 1 FROM white_label_configs wlc WHERE wlc.territory = LOWER(REPLACE(mp.municipality_name, ' ', '-')))
+          AND mp.score IS NOT NULL
+        ORDER BY mp.score DESC NULLS LAST
+        LIMIT $1
+      `, [max_municipalities]);
+      steps.found = unseeded.rowCount;
+
+      for (const muni of unseeded.rows) {
+        try {
+          const slug = muni.municipality_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          // 2. Upsert tenant
+          await query(`
+            INSERT INTO white_label_configs (territory, config, active)
+            VALUES ($1, $2, true)
+            ON CONFLICT (territory) DO NOTHING
+          `, [slug, JSON.stringify({ municipality_name: muni.municipality_name, bfs_number: muni.bfs_number })]);
+          steps.tenants_created++;
+
+          // 3. Draft outreach
+          const draft = `Sehr geehrte Gemeinde ${muni.municipality_name}, OpenLEG bietet freie Infrastruktur für Lokale Elektrizitätsgemeinschaften. Ihr Potenzial-Score: ${muni.score}.`;
+          steps.drafts++;
+
+          // 4. Request CEO approval for outreach
+          if (INTERNAL_TOKEN) {
+            await fetch(`${FLASK_BASE_URL}/api/internal/request-approval`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Internal-Token': INTERNAL_TOKEN },
+              body: JSON.stringify({
+                request_id: `pipeline-${slug}-${Date.now()}`,
+                activity: 'outreach',
+                reference: slug,
+                summary: `Municipality pipeline: outreach to ${muni.municipality_name} (score: ${muni.score})`,
+                payload: { to: `gemeinde@${slug}.ch`, subject: `LEG-Potenzial für ${muni.municipality_name}`, body: draft }
+              })
+            });
+            steps.approvals_requested++;
+          }
+
+          // Track strategy
+          await query(`
+            INSERT INTO strategy_tracker (week, item, status, notes, updated_at)
+            VALUES ($1, $2, 'in_progress', $3, NOW())
+            ON CONFLICT (week, item) DO UPDATE SET notes = $3, updated_at = NOW()
+          `, [Math.min(Math.ceil((new Date().getMonth() + 1) / 3) * 4, 12), `pipeline-${slug}`, `Auto-pipeline: score ${muni.score}`]);
+        } catch (e) {
+          steps.errors.push({ municipality: muni.municipality_name, error: e.message });
+        }
+      }
+      return txt(steps);
+    } catch (e) {
+      steps.errors.push({ stage: 'init', error: e.message });
+      return txt(steps);
+    }
+  }
+);
+
+server.tool(
+  'decompose_strategy_item',
+  'Break a strategy item into subtasks. GREEN tier.',
+  {
+    parent_week: z.number().min(1).max(12).describe('Strategy week number'),
+    parent_item: z.string().describe('Parent item slug'),
+    subtasks: z.array(z.string()).describe('List of subtask descriptions')
+  },
+  async ({ parent_week, parent_item, subtasks }) => {
+    const guard = readonlyGuard(); if (guard) return guard;
+    const results = [];
+    for (const st of subtasks) {
+      await query(
+        `INSERT INTO strategy_subtasks (parent_week, parent_item, subtask)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (parent_week, parent_item, subtask) DO NOTHING`,
+        [parent_week, parent_item, st]
+      );
+      results.push(st);
+    }
+    return txt({ parent_week, parent_item, created: results.length });
+  }
+);
+
+server.tool(
+  'get_strategy_subtasks',
+  'Get subtasks for a strategy item. Read-only, GREEN tier.',
+  {
+    parent_week: z.number().min(1).max(12).describe('Strategy week number'),
+    parent_item: z.string().describe('Parent item slug')
+  },
+  async ({ parent_week, parent_item }) => {
+    const result = await query(
+      'SELECT * FROM strategy_subtasks WHERE parent_week = $1 AND parent_item = $2 ORDER BY id',
+      [parent_week, parent_item]
+    );
+    return txt({ count: result.rowCount, subtasks: result.rows });
+  }
+);
+
+server.tool(
+  'update_strategy_subtask',
+  'Update a strategy subtask status. GREEN tier.',
+  {
+    subtask_id: z.number().describe('Subtask ID'),
+    status: z.enum(['pending', 'in_progress', 'done', 'blocked']).describe('New status'),
+    notes: z.string().optional().describe('Progress notes')
+  },
+  async ({ subtask_id, status, notes }) => {
+    const guard = readonlyGuard(); if (guard) return guard;
+    const result = await query(
+      `UPDATE strategy_subtasks SET status = $2, notes = COALESCE($3, notes), updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [subtask_id, status, notes || null]
+    );
+    return txt(result.rows[0] || { error: 'Subtask not found' });
   }
 );
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +9,7 @@
 <body class="bg-[#f6f4ef] text-ink">
   {% include 'partials/site_nav.html' %}
 
+
   <div class="max-w-5xl mx-auto px-4 pt-8">
     <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-lg">
       <img src="/static/images/subpages/how-it-works.png" alt="OpenLEG Ablauf" class="w-full aspect-[3/1] object-cover" loading="lazy">
@@ -16,8 +17,8 @@
   </div>
 
   <div class="max-w-4xl mx-auto px-4 py-12">
-    <h1 class="text-4xl font-bold mb-4">So funktioniert eine Stromgemeinschaft</h1>
-    <p class="text-ink-muted mb-8">Von der Idee zur aktiven LEG: was Bewohner und Gemeinden wissen müssen.</p>
+    <h1 class="text-4xl font-bold mb-4">{{ t('hiw_title') }}</h1>
+    <p class="text-ink-muted mb-8">{{ t('hiw_subtitle') }}</p>
 
     <div class="space-y-10">
       <!-- Step 1 -->
@@ -61,7 +62,7 @@
         <div class="w-12 h-12 rounded-full bg-brand text-white flex items-center justify-center font-bold text-lg">5</div>
         <div>
           <h2 class="text-2xl font-semibold mb-2">Strom teilen, Geld sparen</h2>
-          <p class="text-ink-muted">Ihre LEG ist aktiv. Solarstrom wird lokal geteilt, alle 15 Minuten abgerechnet. Sie sparen bis 40% auf Netzgebühren (gleiche Netzebene) oder 20% (mit Ebenenwechsel). Auf einem typischen Haushalt (4'500 kWh/Jahr) sind das CHF 90 bis 270 pro Jahr.</p>
+          <p class="text-ink-muted">Ihre LEG ist aktiv. Sie teilen Solarstrom lokal, alle 15 Minuten abgerechnet. Sie sparen bis 40% auf Netzgebühren (gleiche Netzebene) oder 20% (mit Ebenenwechsel). Auf einem typischen Haushalt (4'500 kWh/Jahr) sind das CHF 90 bis 270 pro Jahr.</p>
         </div>
       </section>
     </div>
@@ -76,17 +77,18 @@
       </div>
     </div>
 
-    <!-- For Gemeinden -->
-    <div class="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-6">
-      <h2 class="text-2xl font-bold mb-3">Für Gemeinden</h2>
-      <p class="text-ink-muted mb-3">Jede Gemeinde kann kostenlos eine eigene OpenLEG-Instanz erhalten. Bewohner registrieren sich auf gemeinde.openleg.ch, das System findet passende Nachbarn und begleitet die Gründung.</p>
-      <ul class="list-disc list-inside text-ink-muted space-y-1 mb-4">
-        <li>Eigene Webseite mit Gemeinde-Branding</li>
-        <li>Automatisches Nachbarschafts-Matching</li>
-        <li>Dokumentengenerierung und Netzbetreiber-Anmeldung</li>
-        <li>Übersicht über alle Anmeldungen und Fortschritt</li>
-      </ul>
-      <a href="/gemeinde/onboarding" class="inline-block bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark">Gemeinde anmelden</a>
+    <!-- Zielgruppen -->
+    <div class="mt-6 grid md:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl border border-slate-200 p-6">
+        <h2 class="text-2xl font-bold mb-3">Für Bewohner</h2>
+        <p class="text-ink-muted mb-4">Wenn Sie als Haushalt einsteigen wollen, finden Sie auf der Bewohner-Seite den vollständigen Ablauf mit Rollen, Erwartungen und nächsten Schritten.</p>
+        <a href="/fuer-bewohner" class="inline-block border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-slate-50">Zu Bewohner-Angebot</a>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-6">
+        <h2 class="text-2xl font-bold mb-3">Für Gemeinden</h2>
+        <p class="text-ink-muted mb-4">Wenn Ihre Gemeinde die Einführung koordinieren will, finden Sie auf der Gemeinde-Seite die beiden Betriebsmodelle und den Onboarding-Pfad.</p>
+        <a href="/fuer-gemeinden" class="inline-block bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark">Zu Gemeinde-Angebot</a>
+      </div>
     </div>
 
     <!-- Data sovereignty -->
@@ -99,12 +101,39 @@
       </div>
     </div>
 
+    <!-- How we estimate -->
+    <div class="mt-6 bg-white rounded-xl border border-slate-200 p-6">
+      <h2 class="text-2xl font-bold mb-3">So berechnen wir das Potenzial</h2>
+      <div class="text-ink-muted space-y-3">
+        <p>Wir schätzen das Autarkie-Potenzial aus Standort und Energieprofilen. Wenn Smart-Meter-Daten vorhanden sind, wird die Schätzung genauer.</p>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Standardprofile nach Gebäudetyp (z.B. EFH, MFH, Gewerbe)</li>
+          <li>Wir nutzen Smart-Meter-Daten, wenn die Datenqualität ausreicht</li>
+          <li>Der Vertrauensgrad zeigt, wie belastbar die Schätzung ist</li>
+        </ul>
+        <p class="text-sm">Hinweis: Es ist eine Schätzung, keine Garantie; reale Werte hängen von Wetter und Nutzung ab.</p>
+      </div>
+    </div>
+
     <div class="mt-10 flex flex-col sm:flex-row gap-3">
       <a href="/#registrieren" class="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark text-center">Adresse prüfen</a>
-      <a href="/gemeinde/onboarding" class="border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-white text-center">Gemeinde anmelden</a>
+      <a href="/fuer-gemeinden" class="border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-white text-center">Gemeinde-Angebot ansehen</a>
     </div>
   </div>
 
+  <!-- Savings Widget -->
+  <section class="max-w-xl mx-auto px-4 py-8">
+    {% include 'partials/savings_widget.html' %}
+  </section>
+
+  <!-- Competitor Comparison -->
+  <section class="max-w-4xl mx-auto px-4 pb-12">
+    <h2 class="text-2xl font-bold text-center mb-6">Kostenlos vs. Konkurrenz</h2>
+    {% include 'partials/competitor_comparison.html' %}
+  </section>
+
+  {% include 'partials/cta_tools.html' %}
+  {% include 'partials/cta_gemeinde.html' %}
   {% include 'partials/site_footer.html' %}
 </body>
 </html>

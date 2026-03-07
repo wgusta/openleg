@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
   <meta name="description" content="OpenLEG ist die kostenlose Open Source Plattform für Lokale Elektrizitätsgemeinschaften (LEG) in der Schweiz. Nachbarn finden, Stromgemeinschaft gründen, Netzgebühren sparen.">
   <link rel="canonical" href="{{ site_url }}/">
   <meta property="og:title" content="OpenLEG: Freie Infrastruktur für Schweizer Stromgemeinschaften">
-  <meta property="og:description" content="Kostenlos, Open Source, gehostet in der Schweiz. Gründen Sie Ihre lokale Stromgemeinschaft und sparen Sie bis 40% auf Netzgebühren.">
+  <meta property="og:description" content="Kostenlos, Open Source, gehostet in der Schweiz. Gründen Sie Ihre lokale Stromgemeinschaft und sparen Sie bis zu CHF 270/Jahr auf Netzgebühren.">
   <meta property="og:image" content="{{ site_url }}/static/images/og-image.png">
   <meta property="og:url" content="{{ site_url }}/">
   {% include 'partials/tailwind_brand.html' %}
@@ -26,6 +26,7 @@
 <body class="bg-[#f6f4ef] text-ink">
   {% include 'partials/site_nav.html' %}
 
+
   <!-- Hero -->
   <section class="relative overflow-hidden">
     <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:42px_42px]"></div>
@@ -39,26 +40,26 @@
 
         <div class="mt-6" aria-live="polite">
           <div data-seg-panel="bewohner">
-            <h1 class="text-4xl md:text-5xl font-bold tracking-tight">Ihr Strom. Ihre Nachbarn. Ihre Gemeinschaft.</h1>
-            <p class="mt-4 text-lg text-ink-muted max-w-xl">Gründen Sie eine lokale Stromgemeinschaft (LEG) und sparen Sie bis 40% auf Netzgebühren. Kostenlos, Open Source, Ihre Daten bleiben bei Ihnen.</p>
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight">{{ t('hero_title') }}</h1>
+            <p class="mt-4 text-lg text-ink-muted max-w-xl">{{ t('hero_subtitle') }}</p>
             <div class="mt-6 flex flex-col sm:flex-row gap-3">
-              <a href="#registrieren" class="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark text-center">Adresse prüfen</a>
-              <a href="/how-it-works" class="border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-white text-center">So funktioniert's</a>
+              <a href="#registrieren" class="bg-brand text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-dark text-center shadow-lg">{{ t('cta_adresse_pruefen') }}</a>
+              <a href="/fuer-bewohner" class="border border-ink/20 text-ink px-6 py-3 rounded-xl font-semibold hover:bg-white text-center">{{ t('cta_mehr_bewohner') }}</a>
             </div>
             <div class="mt-6 flex flex-wrap gap-2 text-xs">
-              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">Kostenlos, für immer</span>
-              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">Open Source</span>
-              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">Ihre Daten bleiben bei Ihnen</span>
-              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">Gehostet in der Schweiz</span>
+              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">{{ t('badge_kostenlos') }}</span>
+              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">{{ t('badge_open_source') }}</span>
+              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">{{ t('badge_daten_bleiben') }}</span>
+              <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">{{ t('badge_schweiz') }}</span>
             </div>
           </div>
 
           <div data-seg-panel="gemeinde" class="hidden">
-            <h1 class="text-4xl md:text-5xl font-bold tracking-tight">Ihre Gemeinde ermöglicht die Energiewende.</h1>
-            <p class="mt-4 text-lg text-ink-muted max-w-xl">Eigene Seite für Ihre Gemeinde, Bewohner finden Nachbarn, Stromgemeinschaften entstehen. Kostenlos, kein IT Projekt.</p>
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight">{{ t('hero_gemeinde_title') }}</h1>
+            <p class="mt-4 text-lg text-ink-muted max-w-xl">{{ t('hero_gemeinde_subtitle') }}</p>
             <div class="mt-6 flex flex-col sm:flex-row gap-3">
-              <a href="/gemeinde/onboarding" class="bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark text-center">Gemeinde anmelden</a>
-              <a href="/how-it-works" class="border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-white text-center">So funktioniert's</a>
+              <a href="/gemeinde/onboarding" class="bg-brand text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-dark text-center shadow-lg">{{ t('cta_gemeinde_anmelden') }}</a>
+              <a href="/how-it-works" class="border border-ink/20 text-ink px-6 py-3 rounded-xl font-semibold hover:bg-white text-center">{{ t('cta_so_funktionierts') }}</a>
             </div>
             <div class="mt-6 flex flex-wrap gap-2 text-xs">
               <span class="px-3 py-1 rounded-full bg-white/80 border border-slate-300/60">Eigene Subdomain</span>
@@ -97,7 +98,7 @@
         </div>
         <div class="rounded-xl border border-slate-200 bg-white/80 p-4">
           <div class="text-sm text-ink-muted">Netzgebühren sparen</div>
-          <div class="text-lg font-semibold">Bis 40% Rabatt in Ihrer LEG</div>
+          <div class="text-lg font-semibold">Bis CHF 270/Jahr in Ihrer LEG</div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white/80 p-4">
           <div class="text-sm text-ink-muted">Smart Meter</div>
@@ -118,30 +119,31 @@
       <div class="grid md:grid-cols-2 gap-10 items-center">
         <div>
           <h2 class="text-3xl font-bold">Für Gemeinden: die Energiewende vor Ort ermöglichen.</h2>
-          <p class="text-ink-muted mt-3">Jede Gemeinde bekommt kostenlos ihre eigene Seite. Bewohner melden sich an, das System findet passende Nachbarn, Stromgemeinschaften entstehen.</p>
+          <p class="text-ink-muted mt-3">Gemeinden erhalten eine eigene Seite, klare Prozesse und eine laufende Übersicht. So wird aus einzelnen Interessenten ein belastbares LEG-Projekt mit nachvollziehbaren Schritten für Verwaltung und Bevölkerung.</p>
           <ul class="mt-4 space-y-2 text-ink-muted list-disc list-inside">
-            <li>Eigene Webseite unter gemeinde.openleg.ch</li>
-            <li>Automatisches Nachbarschafts-Matching</li>
-            <li>Alle Dokumente: Vereinbarung, Verträge, Netzbetreiber-Anmeldung</li>
-            <li>Fortschritt und Anmeldungen auf einen Blick</li>
+            <li>Kommunale Seite für Anmeldung, Information und Fortschritt</li>
+            <li>Automatisches Matching passender Haushalte</li>
+            <li>Dokumente und Netzbetreiber-Anmeldung strukturiert vorbereitet</li>
+            <li>Optionaler Projektsupport für Einführung und Betrieb</li>
           </ul>
           <a href="/fuer-gemeinden" class="inline-block mt-6 bg-brand text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-dark">Wie Ihre Gemeinde teilnimmt</a>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-amber-50 p-6">
           <div class="text-sm text-ink-muted">Kurz gesagt</div>
           <div class="mt-2 text-2xl font-semibold">In Tagen live, nicht in Monaten.</div>
-          <div class="mt-3 text-ink-muted">Kostenlos. Kein IT Projekt. Kein Aufwand für Ihre Verwaltung. Wir übernehmen Technik und Betrieb.</div>
+          <div class="mt-3 text-ink-muted">Kostenlos. Sie füllen ein Formular aus, wir übernehmen Technik und Betrieb.</div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Bewohner -->
-  <section id="bewohner" class="py-16 bg-[#f6f4ef]">
+  <section class="py-16 bg-[#f6f4ef]">
     <div class="max-w-6xl mx-auto px-4">
       <div class="mb-6">
-        <h2 class="text-3xl font-bold">Nachbarn finden, Stromgemeinschaft gründen</h2>
-        <p class="text-ink-muted mt-2">Geben Sie Ihre Adresse ein und sehen Sie, wer in Ihrer Nähe ebenfalls mitmachen will. Alles anonymisiert, Ihre Daten bleiben bei Ihnen.</p>
+        <h2 class="text-3xl font-bold">Start für Bewohner: Adresse prüfen und loslegen</h2>
+        <p class="text-ink-muted mt-2">Sie können direkt starten oder zuerst den vollständigen Ablauf lesen. Beide Wege führen zum selben Registrierungsprozess.</p>
+        <a href="/fuer-bewohner" class="inline-block mt-3 border border-ink/20 text-ink px-4 py-2 rounded-lg font-medium hover:bg-white">Detaillierte Bewohner-Seite</a>
         {% if user_count > 0 %}
         <p class="text-ink-muted mt-2">Bereits <strong class="text-ink">{{ user_count }}</strong> Haushalte registriert</p>
         {% endif %}
@@ -173,7 +175,7 @@
               <label class="flex items-start gap-2"><input type="checkbox" id="consent-utility" class="mt-1"> Meine Daten dürfen für die LEG-Anmeldung beim Netzbetreiber verwendet werden.</label>
               <label class="flex items-start gap-2"><input type="checkbox" id="consent-updates"> Ich möchte Updates per E-Mail erhalten.</label>
             </div>
-            <p class="text-xs text-ink-muted mb-3">Ihre Daten werden nicht verkauft und nicht an Dritte weitergegeben. Sie können jederzeit alles löschen.</p>
+            <p class="text-xs text-ink-muted mb-3">Wir verkaufen Ihre Daten nicht und geben sie nicht an Dritte weiter. Sie können jederzeit alles löschen.</p>
             <button id="btn-register" class="w-full bg-amber-500 text-ink py-2 rounded-lg font-semibold hover:bg-amber-400">Jetzt registrieren</button>
           </div>
           <div id="step-success" class="hidden text-center py-6">
@@ -204,7 +206,7 @@
             <li>Kein Vendor Lock-in: jederzeit selbst hosten oder migrieren</li>
             <li>Community-Beiträge willkommen</li>
           </ul>
-          <a href="https://github.com/openleg/openleg" target="_blank" rel="noopener" class="inline-block mt-6 border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-slate-50">Code auf GitHub ansehen</a>
+          <a href="https://github.com/wgusta/openleg" target="_blank" rel="noopener" class="inline-block mt-6 border border-ink/20 text-ink px-6 py-3 rounded-lg font-semibold hover:bg-slate-50">Code auf GitHub ansehen</a>
         </div>
         <div class="space-y-4">
           <div class="rounded-xl border border-slate-200 bg-[#f6f4ef] p-5">
@@ -225,6 +227,8 @@
     </div>
   </section>
 
+  {% include 'partials/cta_tools.html' %}
+  {% include 'partials/cta_gemeinde.html' %}
   {% include 'partials/site_footer.html' %}
 
   <script src="/static/js/landing_segments.js"></script>
@@ -238,6 +242,13 @@
 
   let selectedProfile = null;
   let addressTimeout = null;
+
+  // UTM tracking
+  const _params = new URLSearchParams(window.location.search);
+  const _utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+  const utmData = {};
+  _utmKeys.forEach(k => { const v = _params.get(k); if (v) { utmData[k] = v; sessionStorage.setItem(k, v); } });
+  _utmKeys.forEach(k => { if (!utmData[k]) { const v = sessionStorage.getItem(k); if (v) utmData[k] = v; } });
 
   // Address autocomplete
   const addressInput = document.getElementById('address-input');
@@ -288,16 +299,32 @@
               this.textContent = 'Adresse prüfen';
               return;
           }
-          selectedProfile = data.profile_summary;
-          const matchInfo = document.getElementById('match-info');
-          if (data.potential) {
-              const ci = data.cluster_info;
-              matchInfo.innerHTML = `<strong>${ci.num_members} Nachbarn gefunden!</strong> Autarkie-Potenzial: ${ci.autarky_percent.toFixed(0)}%`;
-          } else {
-              matchInfo.innerHTML = '<strong>Noch keine Nachbarn gefunden.</strong> Sie können trotzdem registrieren.';
-          }
-          document.getElementById('step-address').classList.add('hidden');
-          document.getElementById('step-register').classList.remove('hidden');
+	          selectedProfile = data.profile_summary;
+	          const matchInfo = document.getElementById('match-info');
+	          if (data.potential) {
+	              const ci = data.cluster_info;
+	              const mix = String(ci.profile_data_mix || 'mock');
+	              const dataBasis = ({
+	                  real: 'Smart-Meter-Daten',
+	                  hybrid: 'Messdaten + Standardprofile',
+	                  mock: 'Standardprofile (Gebäudetyp)'
+	              })[mix] || 'Standardprofile (Gebäudetyp)';
+	              const autarky = Number.isFinite(+ci.autarky_percent) ? Math.round(+ci.autarky_percent) : 0;
+	              const confidence = Number.isFinite(+ci.confidence_percent) ? Math.round(+ci.confidence_percent) : null;
+	              const tooltip = 'Vertrauensgrad = Indikator für Datenabdeckung und Plausibilität. Höher = belastbarere Schätzung.';
+	              const detailsLine = confidence === null
+	                  ? `Datenbasis: ${dataBasis}`
+	                  : `Datenbasis: ${dataBasis} · <span title="${tooltip}">Vertrauensgrad: ${confidence}%</span>`;
+	              matchInfo.innerHTML = `
+	                  <div><strong>${ci.num_members} Nachbarn gefunden!</strong></div>
+	                  <div>Autarkie-Potenzial: ${autarky}%</div>
+	                  <div class="text-xs text-slate-600 mt-1">${detailsLine}</div>
+	              `;
+	          } else {
+	              matchInfo.innerHTML = '<strong>Noch keine Nachbarn gefunden.</strong> Sie können trotzdem registrieren.';
+	          }
+	          document.getElementById('step-address').classList.add('hidden');
+	          document.getElementById('step-register').classList.remove('hidden');
       } catch(e) {
           document.getElementById('form-error').textContent = 'Netzwerkfehler. Bitte erneut versuchen.';
           document.getElementById('form-error').classList.remove('hidden');
@@ -324,7 +351,8 @@
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({
                   email, phone, profile_summary: selectedProfile,
-                  consents: {share_with_neighbors: cn, share_with_utility: cu, updates_opt_in: co}
+                  consents: {share_with_neighbors: cn, share_with_utility: cu, updates_opt_in: co},
+                  ...utmData
               })
           });
           const data = await res.json();

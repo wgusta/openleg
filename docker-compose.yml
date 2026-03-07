@@ -14,6 +14,15 @@ services:
     environment:
       - DATABASE_URL=postgresql://badenleg:${POSTGRES_PASSWORD}@postgres:5432/badenleg
       - REDIS_URL=redis://redis:6379/0
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
+      - AGENTMAIL_API_KEY=${AGENTMAIL_API_KEY}
+      - AGENTMAIL_DOMAIN=${AGENTMAIL_DOMAIN:-mail.openleg.ch}
+      - AGENTMAIL_LEA_INBOX=${AGENTMAIL_LEA_INBOX:-lea@mail.openleg.ch}
+      - AGENTMAIL_WEBHOOK_SECRET=${AGENTMAIL_WEBHOOK_SECRET}
+      - AGENT_EMAIL_ENABLED=${AGENT_EMAIL_ENABLED:-true}
     volumes:
       - flask_data:/data
     healthcheck:
@@ -54,11 +63,18 @@ services:
         condition: service_healthy
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
       - OPENCLAW_GATEWAY_PASSWORD=${OPENCLAW_GATEWAY_PASSWORD}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - BRAVE_API_KEY=${BRAVE_API_KEY}
       - OPENCLAW_READONLY=${OPENCLAW_READONLY:-false}
+      - DATABASE_URL=postgresql://badenleg:${POSTGRES_PASSWORD}@postgres:5432/badenleg
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN}
+    volumes:
+      - openclaw_data:/home/node/.openclaw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:18789/"]
       interval: 15s
@@ -102,6 +118,7 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  openclaw_data:
 
 networks:
   web:

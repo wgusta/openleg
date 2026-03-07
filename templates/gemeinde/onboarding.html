@@ -3,90 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemeinde anmelden | OpenLEG</title>
+    <title>Gemeinde starten | OpenLEG</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <nav class="bg-white shadow-sm">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
             <a href="/" class="text-2xl font-bold text-gray-900">OpenLEG</a>
-            <span class="text-sm text-gray-500">Gemeinde-Anmeldung</span>
+            <span class="text-sm text-gray-500">Gemeinde-Onboarding</span>
         </div>
     </nav>
-    <div class="max-w-xl mx-auto px-4 py-12">
-        <div class="overflow-hidden rounded-xl border border-gray-200 shadow-md mb-8">
-            <img src="/static/images/subpages/gemeinde-onboarding.png" alt="Gemeinde Onboarding" class="w-full aspect-[3/1] object-cover" loading="lazy">
-        </div>
-        <h1 class="text-3xl font-bold mb-2">Gemeinde anmelden</h1>
-        <p class="text-gray-600 mb-8">Melden Sie Ihre Gemeinde an und ermöglichen Sie Bewohnern, lokale Stromgemeinschaften zu gründen. Kostenlos, kein IT Aufwand.</p>
 
-        <form id="onboarding-form" class="bg-white rounded-lg shadow-md p-6 space-y-4">
-            <div>
-                <label class="block text-sm font-medium mb-1">Gemeinde auswählen</label>
-                <select id="municipality-select" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-400 focus:outline-none">
-                    <option value="">Gemeinde wählen...</option>
-                    {% for m in municipalities %}
-                    <option value="{{ m.bfs }}" data-name="{{ m.name }}" data-dso="{{ m.dso }}">{{ m.name }} ({{ m.dso }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium mb-1">Kontakt E-Mail (Gemeindeverwaltung)</label>
-                <input type="email" id="admin-email" placeholder="gemeinde@example.ch" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-400 focus:outline-none" required>
-            </div>
-            <div>
-                <label class="block text-sm font-medium mb-1">Ansprechperson</label>
-                <input type="text" id="contact-name" placeholder="Vor- und Nachname" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-400 focus:outline-none">
-            </div>
-            <div class="bg-gray-50 p-4 rounded-lg text-sm">
-                <h4 class="font-medium mb-1">Was Sie erhalten (kostenlos):</h4>
-                <ul class="text-gray-700 space-y-1">
-                    <li>&#10003; Eigene Instanz unter <span id="subdomain-preview" class="font-mono text-gray-900">gemeinde.openleg.ch</span></li>
-                    <li>&#10003; Bewohner-Registrierung und automatisches Matching</li>
-                    <li>&#10003; Übersicht über Anmeldungen und Formationsfortschritt</li>
-                    <li>&#10003; Alle Dokumente inklusive (Vereinbarung, Verträge, DSO-Anmeldung)</li>
-                    <li>&#10003; Keine versteckten Kosten, kein Abo, kein Vendor Lock-in</li>
+    <main class="max-w-5xl mx-auto px-4 py-10">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold mb-2">Stromgemeinschaft starten</h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">OpenLEG ist freie, Open Source Infrastruktur f&uuml;r Schweizer Lokale Elektrizit&auml;tsgemeinschaften. W&auml;hlen Sie Ihren Einstieg.</p>
+        </header>
+
+        <div class="grid lg:grid-cols-2 gap-6 mb-10">
+
+            <!-- Path 1: Self-host -->
+            <section class="bg-white rounded-lg shadow-md p-6 border flex flex-col">
+                <div class="flex items-center gap-2 mb-2">
+                    <h2 class="text-xl font-semibold">Selbst betreiben</h2>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">Open Source</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">Laden Sie den Code herunter und betreiben Sie OpenLEG auf Ihrer eigenen Infrastruktur. Volle Kontrolle, keine Abh&auml;ngigkeit.</p>
+
+                <ul class="text-sm text-gray-700 space-y-2 mb-6 flex-1">
+                    <li>&#10003; AGPL-3.0 Lizenz, vollst&auml;ndig quelloffen</li>
+                    <li>&#10003; Docker Compose Setup, in Minuten lauff&auml;hig</li>
+                    <li>&#10003; Eigene Datenhoheit, kein externer Zugriff</li>
+                    <li>&#10003; Community Support via GitHub Issues</li>
                 </ul>
-            </div>
-            <button type="submit" class="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800">Gemeinde anmelden</button>
-            <div id="form-error" class="text-red-600 text-sm hidden"></div>
-            <div id="form-success" class="text-green-600 text-sm hidden"></div>
-        </form>
-    </div>
-    <script>
-    const select = document.getElementById('municipality-select');
-    select.addEventListener('change', function() {
-        const opt = this.options[this.selectedIndex];
-        const name = opt.dataset.name || '';
-        const subdomain = name.toLowerCase().replace(/\s+/g, '-').replace(/ü/g, 'ue').replace(/ä/g, 'ae').replace(/ö/g, 'oe');
-        document.getElementById('subdomain-preview').textContent = subdomain ? `${subdomain}.openleg.ch` : 'gemeinde.openleg.ch';
-    });
-    document.getElementById('onboarding-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const opt = select.options[select.selectedIndex];
-        const bfs = select.value;
-        const name = opt.dataset.name || '';
-        const email = document.getElementById('admin-email').value;
-        if (!bfs || !email) { document.getElementById('form-error').textContent = 'Bitte alle Felder ausfüllen.'; document.getElementById('form-error').classList.remove('hidden'); return; }
-        try {
-            const res = await fetch('/gemeinde/register', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({bfs_number: parseInt(bfs), name: name, admin_email: email})
-            });
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById('form-success').textContent = `Registrierung erfolgreich! Ihre Instanz: ${data.subdomain}.openleg.ch`;
-                document.getElementById('form-success').classList.remove('hidden');
-                document.getElementById('form-error').classList.add('hidden');
-            } else {
-                document.getElementById('form-error').textContent = data.error || 'Fehler bei der Registrierung.';
-                document.getElementById('form-error').classList.remove('hidden');
-            }
-        } catch(e) {
-            document.getElementById('form-error').textContent = 'Netzwerkfehler.';
-            document.getElementById('form-error').classList.remove('hidden');
-        }
-    });
-    </script>
+
+                <a href="https://github.com/wgusta/openleg" target="_blank" rel="noopener"
+                   class="block text-center bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-gray-800">
+                    GitHub Repository &rarr;
+                </a>
+            </section>
+
+            <!-- Path 2: Managed -->
+            <section class="bg-white rounded-lg shadow-md p-6 border flex flex-col">
+                <div class="flex items-center gap-2 mb-2">
+                    <h2 class="text-xl font-semibold">Managed Setup</h2>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">Projektbasiert</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">Wir richten Ihre Gemeinde-Instanz ein und begleiten den Start. Optionaler, projektbasierter Support.</p>
+
+                <ul class="text-sm text-gray-700 space-y-2 mb-6 flex-1">
+                    <li>&#10003; Eigene Instanz unter <span class="font-mono">gemeinde.openleg.ch</span></li>
+                    <li>&#10003; Einrichtung, Konfiguration, Bewohner-Onboarding</li>
+                    <li>&#10003; Alle Dokumente inklusive (Vereinbarung, Vertr&auml;ge, VNB-Anmeldung)</li>
+                    <li>&#10003; Pers&ouml;nliche Begleitung bis zur aktiven LEG</li>
+                </ul>
+
+                <a href="/gemeinde/anfrage"
+                   class="block text-center bg-teal-700 text-white py-3 rounded-lg font-semibold hover:bg-teal-600">
+                    Anfrage stellen &rarr;
+                </a>
+            </section>
+
+        </div>
+
+        <div class="text-center text-sm text-gray-500">
+            <p>OpenLEG ist freie Infrastruktur. Plattformkern bleibt immer kostenlos und open-source.</p>
+        </div>
+    </main>
 </body>
 </html>

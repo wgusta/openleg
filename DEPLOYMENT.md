@@ -4,7 +4,7 @@
 
 Infomaniak VPS (83.228.223.66), Docker Compose, Caddy with auto TLS.
 
-SSH: `ssh -i ~/.ssh/infomaniak_badenleg ubuntu@83.228.223.66`
+SSH: `ssh -i ~/.ssh/infomaniak_openleg ubuntu@83.228.223.66`
 
 ## Services
 
@@ -20,13 +20,13 @@ SSH: `ssh -i ~/.ssh/infomaniak_badenleg ubuntu@83.228.223.66`
 ```bash
 # Sync files to VPS
 rsync -avz --exclude='.git' --exclude='.env' --exclude='__pycache__' \
-  -e "ssh -i ~/.ssh/infomaniak_badenleg" \
-  /Users/gusta/Projects/badenleg/ \
-  ubuntu@83.228.223.66:/opt/badenleg/
+  -e "ssh -i ~/.ssh/infomaniak_openleg" \
+  ./ \
+  ubuntu@83.228.223.66:/opt/openleg/
 
 # Rebuild and restart
-ssh -i ~/.ssh/infomaniak_badenleg ubuntu@83.228.223.66 \
-  "cd /opt/badenleg && docker compose up -d --build"
+ssh -i ~/.ssh/infomaniak_openleg ubuntu@83.228.223.66 \
+  "cd /opt/openleg && docker compose up -d --build"
 ```
 
 To rebuild only flask: `docker compose up -d --build flask`
@@ -34,7 +34,7 @@ To rebuild only flask: `docker compose up -d --build flask`
 ## First Time Setup
 
 1. Provision VPS, install Docker
-2. Create `/opt/badenleg/` directory
+2. Create `/opt/openleg/` directory
 3. rsync project files
 4. Create `.env` from `.env.example` with real secrets
 5. `docker compose up -d`
@@ -49,14 +49,14 @@ Tables auto-created by `database.py:init_db()` on first Flask boot.
 ### Backup
 
 ```bash
-ssh -i ~/.ssh/infomaniak_badenleg ubuntu@83.228.223.66 \
+ssh -i ~/.ssh/infomaniak_openleg ubuntu@83.228.223.66 \
   "docker exec openleg-postgres pg_dump -U badenleg badenleg" > backup_$(date +%Y%m%d).sql
 ```
 
 ### Restore
 
 ```bash
-cat backup.sql | ssh -i ~/.ssh/infomaniak_badenleg ubuntu@83.228.223.66 \
+cat backup.sql | ssh -i ~/.ssh/infomaniak_openleg ubuntu@83.228.223.66 \
   "docker exec -i openleg-postgres psql -U badenleg badenleg"
 ```
 
