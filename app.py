@@ -6,8 +6,6 @@ import hashlib
 import threading
 import logging
 import json
-import csv
-import io
 from datetime import timedelta
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, abort, Response, g
@@ -57,6 +55,7 @@ import email_automation
 # --- Blueprints ---
 from municipality import municipality_bp
 from api_public import public_api_bp
+from admin_dashboard import admin_bp
 from health import health_bp
 from utility_portal import utility_bp
 
@@ -121,6 +120,7 @@ else:
 # --- Register Blueprints ---
 app.register_blueprint(municipality_bp)
 app.register_blueprint(public_api_bp)
+app.register_blueprint(admin_bp)
 app.register_blueprint(health_bp)
 app.register_blueprint(utility_bp)
 
@@ -412,59 +412,10 @@ def sitemap_xml():
 def _require_admin():
     if not ADMIN_TOKEN:
         abort(404)
-    token = request.headers.get('X-Admin-Token') or request.args.get('token') or ''
+    token = request.headers.get('X-Admin-Token', '')
     if token != ADMIN_TOKEN:
         log_security_event("ADMIN_ACCESS_DENIED", "Invalid admin token", 'WARNING')
         abort(403)
-
-
-@app.route("/admin/overview")
-def admin_overview():
-    _require_admin()
-    stats = db.get_stats()
-    email_stats = db.get_email_stats()
-    consented = db.count_consented_buildings()
-    municipalities = db.get_all_municipalities()
-    return jsonify({
-        "platform": "OpenLEG",
-        "stats": stats,
-        "email_stats": email_stats,
-        "consented_buildings": consented,
-        "municipalities": len(municipalities),
-        "db_available": USE_POSTGRES
-    })
-
-
-@app.route("/admin/pipeline")
-def admin_pipeline():
-    _require_admin()
-    status_filter = request.args.get("status")
-    entries = db.get_vnb_pipeline(status_filter=status_filter)
-    stats = db.get_vnb_pipeline_stats()
-
-    if 'text/html' in (request.headers.get('Accept') or ''):
-        return render_template('admin/pipeline.html', entries=entries, stats=stats)
-    return jsonify({"entries": entries, "stats": stats})
-
-
-@app.route("/admin/export")
-def admin_export():
-    _require_admin()
-    fmt = (request.args.get("format") or "json").lower()
-    city_id = request.args.get("city_id")
-
-    buildings = db.get_all_building_profiles(city_id=city_id)
-    if fmt == "csv":
-        output = io.StringIO()
-        if buildings:
-            writer = csv.DictWriter(output, fieldnames=buildings[0].keys())
-            writer.writeheader()
-            for row in buildings:
-                writer.writerow(row)
-        response = Response(output.getvalue(), mimetype="text/csv")
-        response.headers["Content-Disposition"] = "attachment; filename=openleg_export.csv"
-        return response
-    return jsonify({"records": buildings, "count": len(buildings)})
 
 
 # --- LEA Reports ---
@@ -479,13 +430,6 @@ def api_internal_lea_report():
     status = data.get('status', 'ok')
     db.save_lea_report(job_name, summary, status)
     return jsonify({"ok": True})
-
-
-@app.route("/admin/lea-reports")
-def admin_lea_reports():
-    _require_admin()
-    reports = db.get_lea_reports(limit=50)
-    return jsonify({"reports": reports})
 
 
 # --- Address API ---

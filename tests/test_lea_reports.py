@@ -96,7 +96,7 @@ class TestLeaReportRouteExists:
         assert "X-Internal-Token" in content
 
     def test_admin_lea_reports_route_in_source(self):
-        with open(os.path.join(PROJECT_ROOT, "app.py")) as f:
+        with open(os.path.join(PROJECT_ROOT, "admin_dashboard.py")) as f:
             content = f.read()
         assert "/admin/lea-reports" in content
         assert "get_lea_reports" in content
