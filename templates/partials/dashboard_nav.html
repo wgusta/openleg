@@ -1,0 +1,14 @@
+<nav class="bg-white shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+    <a href="/" class="text-2xl font-bold text-indigo-600">OpenLEG</a>
+    <div class="flex items-center gap-4">
+      <span id="dashboard-title" class="text-sm text-gray-500">{{ dashboard_title or 'Dashboard' }}</span>
+      {% if back_url %}
+      <a href="{{ back_url }}" class="text-sm text-gray-500 hover:text-gray-700">Zurück</a>
+      {% endif %}
+      {% if logout_url %}
+      <a href="{{ logout_url }}" class="text-sm text-gray-500 hover:text-red-600">Abmelden</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>

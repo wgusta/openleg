@@ -1,22 +1,12 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | OpenLEG Utility Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {% set dashboard_title = "Utility Dashboard" %}
+    {% include 'partials/dashboard_head.html' %}
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow-sm">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold text-indigo-600">OpenLEG</a>
-            <div class="flex items-center space-x-4 text-sm">
-                <span class="text-gray-600">{{ client.company_name }}</span>
-                <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium uppercase">{{ client.tier }}</span>
-                <a href="/utility/logout" class="text-gray-500 hover:text-red-600">Abmelden</a>
-            </div>
-        </div>
-    </nav>
+    {% set logout_url = "/utility/logout" %}
+    {% include 'partials/dashboard_nav.html' %}
 
     <div class="max-w-6xl mx-auto px-4 py-8">
         <div class="flex justify-between items-start mb-8">
@@ -88,7 +78,7 @@
                     </div>
                     <div class="flex items-center">
                         <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-xs mr-3">3</span>
-                        <span class="text-sm">White-Label Branding konfigurieren</span>
+                        <span class="text-sm">Technische Integration prüfen</span>
                     </div>
                     <div class="flex items-center">
                         <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-xs mr-3">4</span>
