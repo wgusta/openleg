@@ -412,7 +412,7 @@ def sitemap_xml():
 def _require_admin():
     if not ADMIN_TOKEN:
         abort(404)
-    token = request.headers.get('X-Admin-Token') or request.args.get('token') or ''
+    token = request.headers.get('X-Admin-Token', '')
     if token != ADMIN_TOKEN:
         log_security_event("ADMIN_ACCESS_DENIED", "Invalid admin token", 'WARNING')
         abort(403)
