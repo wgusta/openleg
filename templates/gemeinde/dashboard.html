@@ -1,18 +1,11 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemeinde Dashboard | OpenLEG</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {% set dashboard_title = "Gemeinde Dashboard" %}
+    {% include 'partials/dashboard_head.html' %}
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow-sm">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold text-indigo-600">OpenLEG</a>
-            <span class="text-sm text-gray-500">Gemeinde Dashboard</span>
-        </div>
-    </nav>
+    {% include 'partials/dashboard_nav.html' %}
     <div class="max-w-6xl mx-auto px-4 py-8">
         {% if error %}
         <div class="bg-red-50 text-red-700 p-4 rounded-lg mb-6">{{ error }}</div>
@@ -43,10 +36,10 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <h3 class="font-semibold text-lg mb-4">Nächste Schritte</h3>
                 <ul class="space-y-2 text-sm">
-                    <li class="flex items-center gap-2"><span class="text-green-500">&#10003;</span> Gemeinde registriert</li>
-                    <li class="flex items-center gap-2"><span class="text-gray-300">&#9675;</span> Datenverarbeitungsvertrag unterzeichnen</li>
-                    <li class="flex items-center gap-2"><span class="text-gray-300">&#9675;</span> Bewohner zur Registrierung einladen</li>
-                    <li class="flex items-center gap-2"><span class="text-gray-300">&#9675;</span> Erste LEG gründen</li>
+                    <li class="flex items-center gap-2"><span class="text-green-500">✓</span> Gemeinde registriert</li>
+                    <li class="flex items-center gap-2"><span class="text-gray-300">○</span> Datenverarbeitungsvertrag unterzeichnen</li>
+                    <li class="flex items-center gap-2"><span class="text-gray-300">○</span> Bewohner zur Registrierung einladen</li>
+                    <li class="flex items-center gap-2"><span class="text-gray-300">○</span> Erste LEG gründen</li>
                 </ul>
             </div>
             <div class="bg-white rounded-lg shadow p-6">

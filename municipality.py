@@ -4,6 +4,7 @@ Handles Gemeinde signup, admin dashboard, LEG formation KPIs.
 Public profile pages and directory for municipalities.
 """
 import logging
+import os
 from flask import Blueprint, request, jsonify, render_template, g, abort
 
 import database as db
@@ -80,7 +81,17 @@ def dashboard():
         return render_template('gemeinde/dashboard.html', municipality=None, error="Gemeinde nicht gefunden.")
 
     stats = db.get_stats(city_id=muni.get('subdomain'))
-    return render_template('gemeinde/dashboard.html', municipality=muni, stats=stats, error=None)
+    tenant = getattr(g, 'tenant', {}) or {}
+    ga4_id = tenant.get('ga4_id') or os.getenv('GA4_MEASUREMENT_ID', '')
+    site_url = tenant.get('site_url') or os.getenv('APP_BASE_URL', 'http://localhost:5003').rstrip('/')
+    return render_template(
+        'gemeinde/dashboard.html',
+        municipality=muni,
+        stats=stats,
+        error=None,
+        ga4_id=ga4_id,
+        site_url=site_url,
+    )
 
 @municipality_bp.route('/api/municipalities')
 def api_municipalities():
