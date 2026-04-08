@@ -58,6 +58,7 @@ import email_automation
 from municipality import municipality_bp
 from api_public import public_api_bp
 from health import health_bp
+from resident_dashboard import resident_bp
 from utility_portal import utility_bp
 
 # --- Cron Secret ---
@@ -122,6 +123,7 @@ else:
 app.register_blueprint(municipality_bp)
 app.register_blueprint(public_api_bp)
 app.register_blueprint(health_bp)
+app.register_blueprint(resident_bp)
 app.register_blueprint(utility_bp)
 
 # --- Multi-tenant middleware ---
@@ -856,78 +858,6 @@ def unsubscribe_token(token):
     db.delete_building(building_id)
     db.cancel_emails_for_building(building_id)
     return "<h1>Abmeldung erfolgreich</h1><p>Ihre Daten wurden gelöscht.</p>"
-
-
-# --- Dashboard ---
-@app.route("/dashboard")
-def dashboard():
-    building_id = request.args.get('bid', '').strip()
-    if not building_id:
-        return render_city_template('dashboard.html', error="Kein Profil angegeben.", user=None)
-
-    user = db.get_building_for_dashboard(building_id)
-    if not user:
-        return render_city_template('dashboard.html', error="Profil nicht gefunden.", user=None)
-
-    score = 0
-    checks = []
-    if user.get('verified'):
-        score += 25
-        checks.append(('E-Mail bestätigt', True))
-    else:
-        checks.append(('E-Mail bestätigt', False))
-    if user.get('annual_consumption_kwh'):
-        score += 25
-        checks.append(('Verbrauchsdaten hinterlegt', True))
-    else:
-        checks.append(('Verbrauchsdaten hinterlegt', False))
-    if user.get('share_with_utility'):
-        score += 25
-        checks.append(('EVU-Einwilligung erteilt', True))
-    else:
-        checks.append(('EVU-Einwilligung erteilt', False))
-    if user.get('share_with_neighbors'):
-        score += 25
-        checks.append(('Nachbar-Einwilligung erteilt', True))
-    else:
-        checks.append(('Nachbar-Einwilligung erteilt', False))
-
-    neighbor_count = 0
-    referral_link = ''
-    lat = user.get('lat')
-    lon = user.get('lon')
-    city_id = g.tenant.get('territory') if hasattr(g, 'tenant') else None
-    if lat and lon:
-        neighbor_count = db.get_neighbor_count_near(float(lat), float(lon), city_id=city_id)
-    ref_code = db.get_referral_code(building_id)
-    if ref_code:
-        referral_link = f"{APP_BASE_URL}/?ref={ref_code}"
-
-    return render_city_template('dashboard.html',
-        user=user, readiness_score=score, checks=checks,
-        neighbor_count=neighbor_count, referral_link=referral_link, error=None)
-
-
-# --- Referral System ---
-@app.route("/api/referral/stats/<building_id>")
-def api_referral_stats(building_id):
-    stats = db.get_referral_stats(building_id)
-    referral_code = db.get_referral_code(building_id)
-    return jsonify({
-        "referral_code": referral_code,
-        "referral_link": f"{APP_BASE_URL}/?ref={referral_code}" if referral_code else None,
-        "total_referrals": stats.get('total_referrals', 0)
-    })
-
-
-@app.route("/api/referral/leaderboard")
-def api_referral_leaderboard():
-    city_id = g.tenant.get('territory') if hasattr(g, 'tenant') else None
-    leaderboard = db.get_referral_leaderboard(limit=10, city_id=city_id)
-    for entry in leaderboard:
-        street = entry.get('street', '')
-        entry['display_name'] = street[:15] + '...' if len(street) > 15 else street
-    return jsonify({"leaderboard": leaderboard})
 
 
 @app.route("/api/stats/public")
